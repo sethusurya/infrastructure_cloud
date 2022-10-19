@@ -45,6 +45,10 @@ Parameters:
     Type: String
     Default: "0.0.0.0/0"
 
+  AmiId:
+    Type: String
+    Default: "ami-0d97c92948d354176"
+
 
 Resources:
   Vpc:
@@ -55,7 +59,7 @@ Resources:
       EnableDnsHostnames: 'true'
       InstanceTenancy: default
       Tags:
-      - Key: name
+      - Key: Name
         Value: myVPC
   
   Subnet1:
@@ -63,9 +67,10 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: !Ref SubnetCidrBlock1
+      MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 0, !GetAZs '']
       Tags:
-      - Key: name
+      - Key: Name
         Value: mysubnet1
   
   Subnet2:
@@ -73,9 +78,10 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: !Ref SubnetCidrBlock2
+      MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 1, !GetAZs '']
       Tags:
-      - Key: name
+      - Key: Name
         Value: mysubnet2
   
   Subnet3:
@@ -83,16 +89,17 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       CidrBlock: !Ref SubnetCidrBlock3
+      MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 2, !GetAZs '']
       Tags:
-      - Key: name
+      - Key: Name
         Value: mysubnet3
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
-      - Key: name
+      - Key: Name
         Value: myInternetGateway
 
   InternetGatewayAttachment:
@@ -106,7 +113,7 @@ Resources:
     Properties:
       VpcId: !Ref Vpc
       Tags:
-      - Key: name
+      - Key: Name
         Value: myRouteTable
   
   PublicRoute:
@@ -133,5 +140,62 @@ Resources:
     Properties: 
       RouteTableId: !Ref RouteTable
       SubnetId: !Ref Subnet3
+
+  application:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web application security group
+      VpcId:
+        Ref: Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '3000'
+          ToPort: '3000'
+          CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-application-security-group'
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: "t2.micro"
+      SubnetId: !Ref Subnet1
+      SecurityGroupIds: [!Ref application]
+      DisableApiTermination: "false"
+      BlockDeviceMappings:
+      - DeviceName: "/dev/xvda"
+        Ebs: 
+          VolumeType: "gp2"
+          DeleteOnTermination: "true"
+          VolumeSize: "20"
+      Tags:
+      - Key: Name
+        Value: !Sub 'EC2Instance-${AWS::StackName}'
       
-# Outputs:
+Outputs:
+  VpcId:
+    Description: VPC ID
+    Value: !Ref Vpc
+  SubnetId1:
+    Description: Subnet ID 1
+    Value: !Ref Subnet1
+  SubnetId2:
+    Description: Subnet ID 2
+    Value: !Ref Subnet2
+  SubnetId3:
+    Description: Subnet ID 3
+    Value: !Ref Subnet3
