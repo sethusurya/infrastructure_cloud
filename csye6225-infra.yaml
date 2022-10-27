@@ -216,6 +216,7 @@ Resources:
       SubnetId: !Ref Subnet1
       SecurityGroupIds: [!Ref application]
       DisableApiTermination: "false"
+      IamInstanceProfile: !Ref WebAppEC2InstanceProfile
       BlockDeviceMappings:
       - DeviceName: "/dev/xvda"
         Ebs: 
@@ -238,8 +239,8 @@ Resources:
               export DB_PASSWORD=${MasterDBPassword}
               export DB_USER_NAME=${MasterDBUsername}
             EOF
-            touch /home/ec2-user/webservice/.env
-            cat > /home/ec2-user/webservice/.env << 'EOF'
+            touch /home/ubuntu/webapp/.env
+            cat > /home/ubuntu/webapp/.env << 'EOF'
               DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
               AWS_BUCKET_NAME=${S3BucketName}
               S3REGION=${AWS::Region}
@@ -256,7 +257,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref Vpc
-      CidrBlock: !Ref PrivateSubCidrBlock1:
+      CidrBlock: !Ref PrivateSubCidrBlock1
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 0, !GetAZs '']
       Tags:
@@ -267,7 +268,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref Vpc
-      CidrBlock: !Ref PrivateSubCidrBlock2:
+      CidrBlock: !Ref PrivateSubCidrBlock2
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 1, !GetAZs '']
       Tags:
@@ -278,7 +279,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref Vpc
-      CidrBlock: !Ref PrivateSubCidrBlock3:
+      CidrBlock: !Ref PrivateSubCidrBlock3
       MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 2, !GetAZs '']
       Tags:
