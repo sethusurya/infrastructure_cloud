@@ -233,7 +233,7 @@ Resources:
             cat > /etc/profile.d/webenv.sh << 'EOF'
               export DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
               export AWS_BUCKET_NAME=${S3BucketName}
-              export AWS_BUCKET_REGION=${AWS::Region}
+              export S3REGION=${AWS::Region}
               export DB_NAME=${DBName}
               export DB_PASSWORD=${MasterDBPassword}
               export DB_USER_NAME=${MasterDBUsername}
@@ -242,7 +242,7 @@ Resources:
             cat > /home/ec2-user/webservice/.env << 'EOF'
               DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
               AWS_BUCKET_NAME=${S3BucketName}
-              AWS_BUCKET_REGION=${AWS::Region}
+              S3REGION=${AWS::Region}
               DB_NAME=${DBName}
               DB_PASSWORD=${MasterDBPassword}
               DB_USER_NAME=${MasterDBUsername}
