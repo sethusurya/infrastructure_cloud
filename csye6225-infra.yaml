@@ -89,6 +89,22 @@ Parameters:
     Type: String
     Default: "csye6225.sethu.dev"
 
+  DomainName:
+    Type: String
+    Default: "sethusurya.me."
+
+  DomainPrefix: 
+    Type: String
+    Default: "dev"
+
+  sshKeyName:
+    Type: String
+    Default: "aws-dev"
+
+  sshKeyValue:
+    Type: String
+    Default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQChKYE/DB0rO+xxZhNOANE0Co2gJNjSx8vFnu2jrEE6vIUEsnyIgUQIfbq1jcz9wsZR04gBRDh8X/mmKSLcyKZlM7SxKJ7MZ78EzYCst134yLCW+7o17kfgEgTuCmyi17/m5nuBbURq+AtJMPBF0H5rgrhP8Ug/8TxqCoWcdjSuxd4i24inOHrlvmbcVkbcxkY15mFbJ5Q138aC+LnB9sDVKh6Eo3Q9cbRtZTCag460rlclLIE0b7DWvBglyDCUV+0PoVyFIQgVhXjys8AiDBefeCO6H4c1dswGoQr90RXZu8ny6hQ2+u03cBQ+cZ3iAOAmsRztEYRtuZBXP7JbE88chuYgP80WqaN1hoRIf7I6wvhyIVN3oCksFRBoFgZ9JQr04hEpkombMkpm16pwGnzMIQVLnQu5+uy7D6EUk+AVwGrmA/Zry7yB4LC6jUmeLq79st8Mf3KJ2yEXZlSMuSVaensYjvakYps2ZGAIprmjNuq2C0/qy0dBZKtStAU8Wik= sethu@Sethus-Macbook.local"
+
 
 Resources:
   Vpc:
@@ -215,6 +231,7 @@ Resources:
       InstanceType: "t2.micro"
       SubnetId: !Ref Subnet1
       SecurityGroupIds: [!Ref application]
+      KeyName: !Ref ImportedKeyPair
       DisableApiTermination: "false"
       IamInstanceProfile: !Ref WebAppEC2InstanceProfile
       BlockDeviceMappings:
@@ -229,6 +246,27 @@ Resources:
             #!/bin/bash
             sudo apt-get update
             sudo apt-get upgrade -y
+            sudo apt-get install nginx -y
+            touch /etc/nginx/sites-available/myserver.config
+            chmod 777 /etc/nginx/sites-available/myserver.config
+            cat > /etc/nginx/sites-available/myserver.config << 'EOF'
+              server{
+                  listen 80;
+                  server_name ${DomainPrefix}.${DomainName};
+                  location / {
+                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                      proxy_set_header Host $host;
+                      proxy_pass http://127.0.0.1:3000;
+                      proxy_http_version 1.1;
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection "upgrade";
+                  }
+              }
+            EOF
+            sudo ln -s /etc/nginx/sites-available/myserver.config /etc/nginx/sites-enabled/
+            sudo unlink /etc/nginx/sites-available/default
+            sudo rm /etc/nginx/sites-enabled/default
+            sudo systemctl restart nginx
             touch /etc/profile.d/webenv.sh
             chmod 777 /etc/profile.d/webenv.sh
             cat > /etc/profile.d/webenv.sh << 'EOF'
@@ -436,6 +474,23 @@ Resources:
       InstanceProfileName: WebAppEC2InstanceProfile
       Roles:
         - !Ref WebAppS3EC2IAMRole
+  
+  ImportedKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Ref sshKeyName
+      PublicKeyMaterial: !Ref sshKeyValue
+
+  myDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub '${DomainPrefix}.${DomainName}'
+      Comment: DNS name
+      Name: !Sub '${DomainPrefix}.${DomainName}'
+      Type: A
+      TTL: '60'
+      ResourceRecords:
+        - !GetAtt EC2Instance.PublicIp
     
 Outputs:
   VpcId:
