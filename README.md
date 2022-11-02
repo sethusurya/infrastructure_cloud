@@ -24,8 +24,11 @@ Run the code below to delete the above created stack
 > export AWS_PROFILE=prod
 > export AWS_REGION=us-east-1 
 # Stack with rds and s3
-> aws cloudformation create-stack --stack-name appstack --template-body file://csye6225-infra.yaml --parameters ParameterKey=VpcCIDR,ParameterValue="10.1.0.0/16" ParameterKey=SubnetCidrBlock1,ParameterValue="10.1.1.0/24" ParameterKey=SubnetCidrBlock2,ParameterValue="10.1.2.0/24" ParameterKey=SubnetCidrBlock3,ParameterValue="10.1.3.0/24" ParameterKey=PrivateSubCidrBlock1,ParameterValue="10.1.4.0/24" ParameterKey=PrivateSubCidrBlock2,ParameterValue="10.1.5.0/24" ParameterKey=PrivateSubCidrBlock3,ParameterValue="10.1.6.0/24" ParameterKey=S3BucketName,ParameterValue="sethusurya.dev.csye6225.01" ParameterKey=AmiId,ParameterValue="ami-0247678d613f74cf6" --region us-east-1 --profile=dev  --capabilities CAPABILITY_NAMED_IAM
+> aws cloudformation create-stack --stack-name appstack --template-body file://csye6225-infra.yaml --parameters ParameterKey=VpcCIDR,ParameterValue="10.1.0.0/16" ParameterKey=SubnetCidrBlock1,ParameterValue="10.1.1.0/24" ParameterKey=SubnetCidrBlock2,ParameterValue="10.1.2.0/24" ParameterKey=SubnetCidrBlock3,ParameterValue="10.1.3.0/24" ParameterKey=PrivateSubCidrBlock1,ParameterValue="10.1.4.0/24" ParameterKey=PrivateSubCidrBlock2,ParameterValue="10.1.5.0/24" ParameterKey=PrivateSubCidrBlock3,ParameterValue="10.1.6.0/24" ParameterKey=S3BucketName,ParameterValue="sethusurya.dev.csye6225.01" ParameterKey=AmiId,ParameterValue="ami-0247678d613f74cf6" ParameterKey=DomainPrefix,ParameterValue="prod" --region us-east-1 --profile=prod  --capabilities CAPABILITY_NAMED_IAM
 
-S3 bucket commands
+# S3 bucket commands
 > aws s3 rm s3://sethusurya.dev.csye6225.01 --recursive --profile=dev
 > aws s3api delete-bucket --bucket sethusurya.dev.csye6225.01 --region us-east-1 --profile=dev
+
+# IMPORTANT POINT
+For a production profile, it is necessary to give DomainPrefix which is existing in hosting zones, currently prod.sethusurya.me. is available in hosted zones in production and dev.sethusurya.me is available in dev account. so the domain prefix would be either prod or dev. giving the wrong domain prefix will fail creating the stack

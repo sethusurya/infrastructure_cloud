@@ -247,8 +247,6 @@ Resources:
             sudo apt-get update
             sudo apt-get upgrade -y
             sudo apt-get install nginx -y
-            sudo unlink /etc/nginx/sites-available/default
-            sudo rm /etc/nginx/sites-enabled/default
             touch /etc/nginx/sites-available/myserver.config
             chmod 777 /etc/nginx/sites-available/myserver.config
             cat > /etc/nginx/sites-available/myserver.config << 'EOF'
@@ -266,6 +264,8 @@ Resources:
               }
             EOF
             sudo ln -s /etc/nginx/sites-available/myserver.config /etc/nginx/sites-enabled/
+            sudo unlink /etc/nginx/sites-available/default
+            sudo rm /etc/nginx/sites-enabled/default
             sudo systemctl restart nginx
             touch /etc/profile.d/webenv.sh
             chmod 777 /etc/profile.d/webenv.sh
