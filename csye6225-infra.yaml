@@ -466,6 +466,8 @@ Resources:
               - 'sts:AssumeRole'
       Path: /
       RoleName: EC2-CSYE6225
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/CloudWatchAgentAdminPolicy"
       
   WebAppEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -491,6 +493,33 @@ Resources:
       TTL: '60'
       ResourceRecords:
         - !GetAtt EC2Instance.PublicIp
+  
+    # creating log groups and streams
+  CWLogErrorGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName : csye6225-webapp-error
+      RetentionInDays: 5
+
+  CWLogErrorStream:
+    Type: AWS::Logs::LogStream
+    DependsOn: CWLogErrorGroup
+    Properties:
+      LogGroupName: "csye6225-webapp-error"
+      LogStreamName: "webapp-error-logs"
+
+  CWLogOutputGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName : csye6225-webapp-output
+      RetentionInDays: 5
+
+  CWLogOutputStream:
+    Type: AWS::Logs::LogStream
+    DependsOn: CWLogOutputGroup
+    Properties:
+      LogGroupName: "csye6225-webapp-output"
+      LogStreamName: "webapp-output-logs"
     
 Outputs:
   VpcId:
