@@ -286,7 +286,9 @@ Resources:
               DB_PASSWORD=${MasterDBPassword}
               DB_USER_NAME=${MasterDBUsername}
             EOF
-            pm2 reload all --update-env
+            cd /home/ubuntu/webapp
+            pm2 restart/reload ecosystem.config.js --update-env
+            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
       Tags:
       - Key: Name
         Value: !Sub 'EC2Instance-${AWS::StackName}'
@@ -466,6 +468,8 @@ Resources:
               - 'sts:AssumeRole'
       Path: /
       RoleName: EC2-CSYE6225
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/CloudWatchAgentAdminPolicy"
       
   WebAppEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -491,6 +495,33 @@ Resources:
       TTL: '60'
       ResourceRecords:
         - !GetAtt EC2Instance.PublicIp
+  
+    # creating log groups and streams
+  CWLogErrorGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName : csye6225-webapp-error
+      RetentionInDays: 5
+
+  CWLogErrorStream:
+    Type: AWS::Logs::LogStream
+    DependsOn: CWLogErrorGroup
+    Properties:
+      LogGroupName: "csye6225-webapp-error"
+      LogStreamName: "webapp-error-logs"
+
+  CWLogOutputGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName : csye6225-webapp-output
+      RetentionInDays: 5
+
+  CWLogOutputStream:
+    Type: AWS::Logs::LogStream
+    DependsOn: CWLogOutputGroup
+    Properties:
+      LogGroupName: "csye6225-webapp-output"
+      LogStreamName: "webapp-output-logs"
     
 Outputs:
   VpcId:
