@@ -286,7 +286,9 @@ Resources:
               DB_PASSWORD=${MasterDBPassword}
               DB_USER_NAME=${MasterDBUsername}
             EOF
-            pm2 reload all --update-env
+            cd /home/ubuntu/webapp
+            pm2 restart/reload ecosystem.config.js --update-env
+            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
       Tags:
       - Key: Name
         Value: !Sub 'EC2Instance-${AWS::StackName}'
