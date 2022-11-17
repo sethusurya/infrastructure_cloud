@@ -112,6 +112,14 @@ Parameters:
   LambdaBucketName:
     Type: String
     Default: "lambdabucket.sethusurya.com"
+
+  SENDGRIDAPI:
+    Type: String
+    Default: "give the value of key"
+  
+  tokenttl:
+    Type: Number
+    Default: 300
   
 Resources:
   Vpc:
@@ -284,6 +292,7 @@ Resources:
               export DB_PASSWORD=${MasterDBPassword}
               export DB_USER_NAME=${MasterDBUsername}
               export SNS_TOPIC_ARN=${SNSTopic}
+              export tokenExpireSeconds=${tokenttl}
             EOF
             touch /home/ubuntu/webapp/.env
             cat > /home/ubuntu/webapp/.env << 'EOF'
@@ -294,9 +303,10 @@ Resources:
               DB_PASSWORD=${MasterDBPassword}
               DB_USER_NAME=${MasterDBUsername}
               SNS_TOPIC_ARN=${SNSTopic}
+              tokenExpireSeconds=${tokenttl}
             EOF
             cd /home/ubuntu/webapp
-            pm2 restart/reload ecosystem.config.js --update-env
+            pm2 reload ecosystem.config.js --update-env
             sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
       Tags:
       - Key: Name
@@ -487,7 +497,7 @@ Resources:
       - LambdaFunction
     Properties:
       Users:
-        - "ghactions-lambda"
+        - "github_lambda"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -544,51 +554,54 @@ Resources:
         - !Ref LambdaExecutionRole
         - !Ref WebAppS3EC2IAMRole
 
-  CodeDeployEC2S3Policy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Action:
-              - "s3:GetObject"
-              - "s3:ListBucket"
-            Resource:
-              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/'
-              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
-      PolicyName: "CodeDeployEC2S3"
-      Roles:
-        - !Ref WebAppS3EC2IAMRole
+  # CodeDeployEC2S3Policy:
+  #   Type: AWS::IAM::Policy
+  #   Properties:
+  #     PolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - "s3:GetObject"
+  #             - "s3:ListBucket"
+  #           Resource:
+  #             - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/'
+  #             - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
+  #     PolicyName: "CodeDeployEC2S3"
+  #     Roles:
+  #       - !Ref WebAppS3EC2IAMRole
 
-  CodeDeployApplication:
-    Type: AWS::CodeDeploy::Application
-    Properties:
-      ApplicationName: "csye6225-webapp"
-      ComputePlatform: "Server"
-      Tags:
-        - Key: Name
-          Value: !Sub '${AWS::StackName}-codedeploy-app'
+  # CodeDeployApplication:
+  #   Type: AWS::CodeDeploy::Application
+  #   Properties:
+  #     ApplicationName: "csye6225-webapp"
+  #     ComputePlatform: "Server"
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub '${AWS::StackName}-codedeploy-app'
 
-  CodeDeploymentGroup:
-    Type: AWS::CodeDeploy::DeploymentGroup
-    Properties:
-      DeploymentGroupName: "csye6225-webapp-deployment"
-      ApplicationName: "csye6225-webapp"
-      DeploymentStyle:
-        DeploymentOption: "WITHOUT_TRAFFIC_CONTROL"
-        DeploymentType: "IN_PLACE"
-      DeploymentConfigName: "CodeDeployDefault.AllAtOnce"
-      AutoRollbackConfiguration:
-        Enabled: true
-        Events:
-          - "DEPLOYMENT_FAILURE"
-      Ec2TagFilters: 
-        - Key: Application
-          Type: KEY_AND_VALUE
-          Value: WebApp
-      OutdatedInstancesStrategy: UPDATE
-      ServiceRoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/CodeDeployServiceRole'
+  # CodeDeploymentGroup:
+  #   Type: AWS::CodeDeploy::DeploymentGroup
+  #   DependsOn:
+  #     - CodeDeployApplication
+  #     - WebAppS3EC2IAMPolicy
+  #   Properties:
+  #     DeploymentGroupName: "csye6225-webapp-deployment"
+  #     ApplicationName: "csye6225-webapp"
+  #     DeploymentStyle:
+  #       DeploymentOption: "WITHOUT_TRAFFIC_CONTROL"
+  #       DeploymentType: "IN_PLACE"
+  #     DeploymentConfigName: "CodeDeployDefault.AllAtOnce"
+  #     AutoRollbackConfiguration:
+  #       Enabled: true
+  #       Events:
+  #         - "DEPLOYMENT_FAILURE"
+  #     Ec2TagFilters: 
+  #       - Key: Application
+  #         Type: KEY_AND_VALUE
+  #         Value: WebApp
+  #     OutdatedInstancesStrategy: UPDATE
+  #     ServiceRoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/CodeDeployServiceRole'
 
   DynamoTokenTbl:
     Type: AWS::DynamoDB::Table
@@ -691,12 +704,13 @@ Resources:
       Environment:
         Variables:
           DomainName: !Sub '${DomainPrefix}.sethusurya.com'
+          SENDGRID_API_KEY: !Sub '${SENDGRIDAPI}'
       FunctionName: EmailVerification
       Handler: index.emailVerification
       MemorySize: 128
       PackageType: Zip
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: nodejs14.x
+      Runtime: nodejs16.x
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-lambda-emailfn'

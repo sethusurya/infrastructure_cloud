@@ -6,14 +6,14 @@ Parameters:
     Default: "codedeploy.sethusurya.com"
   GHActionsUser:
     Type: String
-    Default: "ghactions-app"
+    Default: "github_actions"
 Resources:
   # upload from github actions to s3
   GHUploadToS3Policy:
     Type: AWS::IAM::Policy
     Properties:
       Users:
-        - "ghactions-app"
+        - "github_actions"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -31,7 +31,7 @@ Resources:
     Type: AWS::IAM::Policy
     Properties:
       Users:
-        - "ghactions-app"
+        - "github_actions"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -59,7 +59,7 @@ Resources:
     Type: AWS::IAM::Policy
     Properties:
       Users:
-        - "ghactions-app"
+        - "github_actions"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
