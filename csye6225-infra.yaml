@@ -105,7 +105,22 @@ Parameters:
     Type: String
     Default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQChKYE/DB0rO+xxZhNOANE0Co2gJNjSx8vFnu2jrEE6vIUEsnyIgUQIfbq1jcz9wsZR04gBRDh8X/mmKSLcyKZlM7SxKJ7MZ78EzYCst134yLCW+7o17kfgEgTuCmyi17/m5nuBbURq+AtJMPBF0H5rgrhP8Ug/8TxqCoWcdjSuxd4i24inOHrlvmbcVkbcxkY15mFbJ5Q138aC+LnB9sDVKh6Eo3Q9cbRtZTCag460rlclLIE0b7DWvBglyDCUV+0PoVyFIQgVhXjys8AiDBefeCO6H4c1dswGoQr90RXZu8ny6hQ2+u03cBQ+cZ3iAOAmsRztEYRtuZBXP7JbE88chuYgP80WqaN1hoRIf7I6wvhyIVN3oCksFRBoFgZ9JQr04hEpkombMkpm16pwGnzMIQVLnQu5+uy7D6EUk+AVwGrmA/Zry7yB4LC6jUmeLq79st8Mf3KJ2yEXZlSMuSVaensYjvakYps2ZGAIprmjNuq2C0/qy0dBZKtStAU8Wik= sethu@Sethus-Macbook.local"
 
+  CodeDeployBucketName:
+    Type: String
+    Default: "codedeploy.sethusurya.com"
 
+  LambdaBucketName:
+    Type: String
+    Default: "lambdabucket.sethusurya.com"
+
+  SENDGRIDAPI:
+    Type: String
+    Default: "give the value of key"
+  
+  tokenttl:
+    Type: Number
+    Default: 300
+  
 Resources:
   Vpc:
     Type: AWS::EC2::VPC
@@ -276,6 +291,8 @@ Resources:
               export DB_NAME=${DBName}
               export DB_PASSWORD=${MasterDBPassword}
               export DB_USER_NAME=${MasterDBUsername}
+              export SNS_TOPIC_ARN=${SNSTopic}
+              export tokenExpireSeconds=${tokenttl}
             EOF
             touch /home/ubuntu/webapp/.env
             cat > /home/ubuntu/webapp/.env << 'EOF'
@@ -285,9 +302,11 @@ Resources:
               DB_NAME=${DBName}
               DB_PASSWORD=${MasterDBPassword}
               DB_USER_NAME=${MasterDBUsername}
+              SNS_TOPIC_ARN=${SNSTopic}
+              tokenExpireSeconds=${tokenttl}
             EOF
             cd /home/ubuntu/webapp
-            pm2 restart/reload ecosystem.config.js --update-env
+            pm2 reload ecosystem.config.js --update-env
             sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
       Tags:
       - Key: Name
@@ -470,6 +489,232 @@ Resources:
       RoleName: EC2-CSYE6225
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/CloudWatchAgentAdminPolicy"
+        - "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole"
+
+  GHLambdaS3Policy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - LambdaFunction
+    Properties:
+      Users:
+        - "github_lambda"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "s3:PutObject"
+            Resource:
+              - !Sub 'arn:aws:s3:::${LambdaBucketName}/'
+              - !Sub 'arn:aws:s3:::${LambdaBucketName}/*'
+          - Effect: Allow
+            Action:
+              - "lambda:GetFunction"
+              - "lambda:UpdateFunctionCode"
+            Resource:
+              - !GetAtt LambdaFunction.Arn
+      PolicyName: "GHLambdaS3Policy"
+
+  LambdaPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - SNSTopic
+      - DynamoTokenTbl
+      - DynamoEmailListTbl
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "dynamodb:GetItem"
+              - "dynamodb:PutItem"
+              - "dynamodb:UpdateItem"
+            Resource:
+              - !GetAtt DynamoTokenTbl.Arn
+              - !GetAtt DynamoEmailListTbl.Arn
+          - Effect: Allow
+            Action:
+              - "ses:SendEmail"
+              - "ses:SendRawEmail"
+            Resource:
+              - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${DomainPrefix}.sethusurya.com'
+          - Effect: Allow
+            Action:
+              - "sns:ListTopics"
+              - "sns:CreateTopic"
+              - "sns:GetTopicAttributes"
+              - "sns:Publish"
+            Resource:
+              - !Ref SNSTopic
+      PolicyName: "LambdaPolicy"
+      Roles:
+        - !Ref LambdaExecutionRole
+        - !Ref WebAppS3EC2IAMRole
+
+  # CodeDeployEC2S3Policy:
+  #   Type: AWS::IAM::Policy
+  #   Properties:
+  #     PolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - "s3:GetObject"
+  #             - "s3:ListBucket"
+  #           Resource:
+  #             - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/'
+  #             - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
+  #     PolicyName: "CodeDeployEC2S3"
+  #     Roles:
+  #       - !Ref WebAppS3EC2IAMRole
+
+  # CodeDeployApplication:
+  #   Type: AWS::CodeDeploy::Application
+  #   Properties:
+  #     ApplicationName: "csye6225-webapp"
+  #     ComputePlatform: "Server"
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub '${AWS::StackName}-codedeploy-app'
+
+  # CodeDeploymentGroup:
+  #   Type: AWS::CodeDeploy::DeploymentGroup
+  #   DependsOn:
+  #     - CodeDeployApplication
+  #     - WebAppS3EC2IAMPolicy
+  #   Properties:
+  #     DeploymentGroupName: "csye6225-webapp-deployment"
+  #     ApplicationName: "csye6225-webapp"
+  #     DeploymentStyle:
+  #       DeploymentOption: "WITHOUT_TRAFFIC_CONTROL"
+  #       DeploymentType: "IN_PLACE"
+  #     DeploymentConfigName: "CodeDeployDefault.AllAtOnce"
+  #     AutoRollbackConfiguration:
+  #       Enabled: true
+  #       Events:
+  #         - "DEPLOYMENT_FAILURE"
+  #     Ec2TagFilters: 
+  #       - Key: Application
+  #         Type: KEY_AND_VALUE
+  #         Value: WebApp
+  #     OutdatedInstancesStrategy: UPDATE
+  #     ServiceRoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/CodeDeployServiceRole'
+
+  DynamoTokenTbl:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: emailid
+          AttributeType: S
+      KeySchema:
+        - AttributeName: emailid
+          KeyType: HASH
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 20
+        WriteCapacityUnits: 20
+      TableName: emailTokenTbl
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-token-tb'
+      TimeToLiveSpecification: 
+        AttributeName: ttl
+        Enabled: true
+
+  DynamoEmailListTbl:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions: 
+        - AttributeName: emailid
+          AttributeType: S
+      KeySchema:
+        - AttributeName: emailid
+          KeyType: HASH
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 20
+        WriteCapacityUnits: 20
+      TableName: emailListTbl
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-emaillist-tb'
+      TimeToLiveSpecification: 
+        AttributeName: ttl
+        Enabled: false
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    DependsOn:
+      - LambdaFunction
+    Properties:
+      DisplayName: 'UserVerificationTopic'
+      Subscription:
+        - Endpoint: !GetAtt LambdaFunction.Arn
+          Protocol: lambda
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-sns-topic'
+      TopicName: 'UserVerificationTopic'
+
+  LambdaSNSPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - SNSTopic
+    Properties: 
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Principal: sns.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Ref SNSTopic
+
+    # create lambda execution role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      RoleName: lambda-execution-role
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+  # create lambda function
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - LambdaExecutionRole
+    Properties:
+      Code:
+        ZipFile: |
+          exports.emailVerification = (event, context, callback) => { 
+            console.log('Lambda function for email');
+            callback(null);
+          }
+      Description: Lambda function for email sending
+      Environment:
+        Variables:
+          DomainName: !Sub '${DomainPrefix}.sethusurya.com'
+          SENDGRID_API_KEY: !Sub '${SENDGRIDAPI}'
+      FunctionName: EmailVerification
+      Handler: index.emailVerification
+      MemorySize: 128
+      PackageType: Zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs16.x
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-lambda-emailfn'
+      Timeout: 15
       
   WebAppEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
