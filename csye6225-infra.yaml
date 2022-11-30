@@ -123,7 +123,8 @@ Parameters:
 
   SSLCertificateArn:
     Type: String
-    Default: "arn:aws:acm:us-east-1:452294843982:certificate/5e1cc099-4256-4987-866e-d1ade200d97c"
+    Default: "arn:aws:acm:us-east-1:452294843982:certificate/01b07b55-417e-4358-9bcd-f5b5b0049ba0"
+    # Default: "arn:aws:acm:us-east-1:452294843982:certificate/5e1cc099-4256-4987-866e-d1ade200d97c"
   
 Resources:
   Vpc:
@@ -441,6 +442,8 @@ Resources:
 
   RDSDBInstance:
     Type: AWS::RDS::DBInstance
+    DependsOn:
+      - RDSCustomerManagedKey
     DeletionPolicy: Delete
     Properties:
       Engine: postgres
@@ -458,6 +461,8 @@ Resources:
       DBParameterGroupName: !Ref RDSParameterGroup
       VPCSecurityGroups:
         - !Ref DatabaseSecurityGroup
+      StorageEncrypted: true
+      KmsKeyId: !Ref RDSCustomerManagedKey
 
   WebAppS3EC2IAMPolicy:
     Type: AWS::IAM::Policy
@@ -646,7 +651,7 @@ Resources:
               tokenExpireSeconds=${tokenttl}
             EOF
             cd /home/ubuntu/webapp
-            pm2 reload ecosystem.config.js --update-env
+            pm2 reload all --update-env
             sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
         TagSpecifications:
           - ResourceType: "instance"
@@ -832,29 +837,29 @@ Resources:
         - Key: Name
           Value: !Sub '${AWS::StackName}-codedeploy-app'
 
-  CodeDeploymentGroup:
-    Type: AWS::CodeDeploy::DeploymentGroup
-    DependsOn:
-      - AutoSGWebApp
-      # - CodeDeployApplication
-      # - WebAppS3EC2IAMPolicy
-    Properties:
-      DeploymentGroupName: "csye6225-webapp-deployment"
-      ApplicationName: "csye6225-webapp"
-      DeploymentStyle:
-        DeploymentOption: "WITHOUT_TRAFFIC_CONTROL"
-        DeploymentType: "IN_PLACE"
-      DeploymentConfigName: "CodeDeployDefault.AllAtOnce"
-      AutoRollbackConfiguration:
-        Enabled: true
-        Events:
-          - "DEPLOYMENT_FAILURE"
-      Ec2TagFilters: 
-        - Key: Application
-          Type: KEY_AND_VALUE
-          Value: WebApp
-      OutdatedInstancesStrategy: UPDATE
-      ServiceRoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/CodeDeployServiceRole'
+  # CodeDeploymentGroup:
+  #   Type: AWS::CodeDeploy::DeploymentGroup
+  #   DependsOn:
+  #     - AutoSGWebApp
+  #     # - CodeDeployApplication
+  #     # - WebAppS3EC2IAMPolicy
+  #   Properties:
+  #     DeploymentGroupName: "csye6225-webapp-deployment"
+  #     ApplicationName: "csye6225-webapp"
+  #     DeploymentStyle:
+  #       DeploymentOption: "WITHOUT_TRAFFIC_CONTROL"
+  #       DeploymentType: "IN_PLACE"
+  #     DeploymentConfigName: "CodeDeployDefault.AllAtOnce"
+  #     AutoRollbackConfiguration:
+  #       Enabled: true
+  #       Events:
+  #         - "DEPLOYMENT_FAILURE"
+  #     Ec2TagFilters: 
+  #       - Key: Application
+  #         Type: KEY_AND_VALUE
+  #         Value: WebApp
+  #     OutdatedInstancesStrategy: UPDATE
+  #     ServiceRoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/CodeDeployServiceRole'
 
   DynamoTokenTbl:
     Type: AWS::DynamoDB::Table
@@ -984,15 +989,16 @@ Resources:
       PublicKeyMaterial: !Ref sshKeyValue
 
   myDNSRecord:
-    Type: AWS::Route53::RecordSet
+    Type: AWS::Route53::RecordSetGroup
     Properties:
+      Comment: "Accessing application through DNS"
       HostedZoneName: !Sub '${DomainPrefix}.${DomainName}'
-      Comment: DNS name
-      Name: !Sub '${DomainPrefix}.${DomainName}'
-      Type: A
-      TTL: '60'
-      ResourceRecords:
-        - !GetAtt EC2Instance.PublicIp
+      RecordSets:
+        - Name: !Sub '${DomainPrefix}.${DomainName}'
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt 'ApplicationLoadBalancer.DNSName'
+            HostedZoneId: !GetAtt 'ApplicationLoadBalancer.CanonicalHostedZoneID'
 
   # ebs customer managed key
   EBSKey:
@@ -1007,14 +1013,16 @@ Resources:
           # for iam user permission 
           - Effect: Allow
             Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action: 'kms:*'
+              AWS: 
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 
+              - kms:*
             Resource: '*'
           # service-linked role
           - Effect: Allow
             Principal:
               AWS:
-              - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling'
             Action:
               - kms:Encrypt
               - kms:Decrypt
@@ -1026,7 +1034,7 @@ Resources:
           - Effect: Allow
             Principal:
               AWS:
-                - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling'
             Action:
               - kms:CreateGrant
             Resource: '*'
@@ -1044,6 +1052,34 @@ Resources:
     Properties:
       AliasName: alias/ebskey
       TargetKeyId: !Ref EBSKey
+
+  # rds customer managed key
+  RDSCustomerManagedKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: Customer managed RDS Key
+      Enabled: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: rdskey
+        Statement:
+          # for iam user permission 
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+      PendingWindowInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-rds-key'
+
+  # alias for rds key
+  RDSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/rdskey
+      TargetKeyId: !Ref RDSCustomerManagedKey
 
   
     # creating log groups and streams
