@@ -38,3 +38,6 @@ For a production profile, it is necessary to give DomainPrefix which is existing
 
 # CodeDeploy Stack
 aws cloudformation create-stack --stack-name codedeploystack --template-body file://ci-cd-infra.yaml --parameters ParameterKey=CodeDeployBucketName,ParameterValue="codedeploy.sethusurya.com" --region us-east-1 --profile=production --capabilities CAPABILITY_NAMED_IAM
+
+# For importing ssl from namecheap to aws certificate manager
+aws iam upload-server-certificate --server-certificate-name certificate_object_name --certificate-body file://*path to your certificate file* --private-key file://*path to your private key file* --certificate-chain file://*path to your CA-bundle file* --profile=production

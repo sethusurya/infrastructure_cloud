@@ -120,6 +120,11 @@ Parameters:
   tokenttl:
     Type: Number
     Default: 300
+
+  SSLCertificateArn:
+    Type: String
+    Default: "arn:aws:acm:us-east-1:452294843982:certificate/01b07b55-417e-4358-9bcd-f5b5b0049ba0"
+    # Default: "arn:aws:acm:us-east-1:452294843982:certificate/5e1cc099-4256-4987-866e-d1ade200d97c"
   
 Resources:
   Vpc:
@@ -239,78 +244,78 @@ Resources:
       - Key: Name
         Value: !Sub '${AWS::StackName}-application-security-group'
 
-  EC2Instance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !Ref AmiId
-      InstanceType: "t2.micro"
-      SubnetId: !Ref Subnet1
-      SecurityGroupIds: [!Ref application]
-      KeyName: !Ref ImportedKeyPair
-      DisableApiTermination: "false"
-      IamInstanceProfile: !Ref WebAppEC2InstanceProfile
-      BlockDeviceMappings:
-      - DeviceName: "/dev/xvda"
-        Ebs: 
-          VolumeType: "gp2"
-          DeleteOnTermination: "true"
-          VolumeSize: "20"
-      UserData:
-        Fn::Base64:
-          !Sub |
-            #!/bin/bash
-            sudo apt-get update
-            sudo apt-get upgrade -y
-            sudo apt-get install nginx -y
-            touch /etc/nginx/sites-available/myserver.config
-            chmod 777 /etc/nginx/sites-available/myserver.config
-            cat > /etc/nginx/sites-available/myserver.config << 'EOF'
-              server{
-                  listen 80;
-                  server_name ${DomainPrefix}.${DomainName};
-                  location / {
-                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                      proxy_set_header Host $host;
-                      proxy_pass http://127.0.0.1:3000;
-                      proxy_http_version 1.1;
-                      proxy_set_header Upgrade $http_upgrade;
-                      proxy_set_header Connection "upgrade";
-                  }
-              }
-            EOF
-            sudo ln -s /etc/nginx/sites-available/myserver.config /etc/nginx/sites-enabled/
-            sudo unlink /etc/nginx/sites-available/default
-            sudo rm /etc/nginx/sites-enabled/default
-            sudo systemctl restart nginx
-            touch /etc/profile.d/webenv.sh
-            chmod 777 /etc/profile.d/webenv.sh
-            cat > /etc/profile.d/webenv.sh << 'EOF'
-              export DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
-              export AWS_BUCKET_NAME=${S3BucketName}
-              export S3REGION=${AWS::Region}
-              export DB_NAME=${DBName}
-              export DB_PASSWORD=${MasterDBPassword}
-              export DB_USER_NAME=${MasterDBUsername}
-              export SNS_TOPIC_ARN=${SNSTopic}
-              export tokenExpireSeconds=${tokenttl}
-            EOF
-            touch /home/ubuntu/webapp/.env
-            cat > /home/ubuntu/webapp/.env << 'EOF'
-              DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
-              AWS_BUCKET_NAME=${S3BucketName}
-              S3REGION=${AWS::Region}
-              DB_NAME=${DBName}
-              DB_PASSWORD=${MasterDBPassword}
-              DB_USER_NAME=${MasterDBUsername}
-              SNS_TOPIC_ARN=${SNSTopic}
-              tokenExpireSeconds=${tokenttl}
-            EOF
-            cd /home/ubuntu/webapp
-            pm2 reload ecosystem.config.js --update-env
-            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
-      Tags:
-      - Key: Name
-        Value: !Sub 'EC2Instance-${AWS::StackName}'
+  # EC2Instance:
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     ImageId: !Ref AmiId
+  #     InstanceType: "t2.micro"
+  #     SubnetId: !Ref Subnet1
+  #     SecurityGroupIds: [!Ref application]
+  #     KeyName: !Ref ImportedKeyPair
+  #     DisableApiTermination: "false"
+  #     IamInstanceProfile: !Ref WebAppEC2InstanceProfile
+  #     BlockDeviceMappings:
+  #     - DeviceName: "/dev/xvda"
+  #       Ebs: 
+  #         VolumeType: "gp2"
+  #         DeleteOnTermination: "true"
+  #         VolumeSize: "20"
+  #     UserData:
+  #       Fn::Base64:
+  #         !Sub |
+  #           #!/bin/bash
+  #           sudo apt-get update
+  #           sudo apt-get upgrade -y
+  #           sudo apt-get install nginx -y
+  #           touch /etc/nginx/sites-available/myserver.config
+  #           chmod 777 /etc/nginx/sites-available/myserver.config
+  #           cat > /etc/nginx/sites-available/myserver.config << 'EOF'
+  #             server{
+  #                 listen 80;
+  #                 server_name ${DomainPrefix}.${DomainName};
+  #                 location / {
+  #                     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  #                     proxy_set_header Host $host;
+  #                     proxy_pass http://127.0.0.1:3000;
+  #                     proxy_http_version 1.1;
+  #                     proxy_set_header Upgrade $http_upgrade;
+  #                     proxy_set_header Connection "upgrade";
+  #                 }
+  #             }
+  #           EOF
+  #           sudo ln -s /etc/nginx/sites-available/myserver.config /etc/nginx/sites-enabled/
+  #           sudo unlink /etc/nginx/sites-available/default
+  #           sudo rm /etc/nginx/sites-enabled/default
+  #           sudo systemctl restart nginx
+  #           touch /etc/profile.d/webenv.sh
+  #           chmod 777 /etc/profile.d/webenv.sh
+  #           cat > /etc/profile.d/webenv.sh << 'EOF'
+  #             export DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
+  #             export AWS_BUCKET_NAME=${S3BucketName}
+  #             export S3REGION=${AWS::Region}
+  #             export DB_NAME=${DBName}
+  #             export DB_PASSWORD=${MasterDBPassword}
+  #             export DB_USER_NAME=${MasterDBUsername}
+  #             export SNS_TOPIC_ARN=${SNSTopic}
+  #             export tokenExpireSeconds=${tokenttl}
+  #           EOF
+  #           touch /home/ubuntu/webapp/.env
+  #           cat > /home/ubuntu/webapp/.env << 'EOF'
+  #             DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
+  #             AWS_BUCKET_NAME=${S3BucketName}
+  #             S3REGION=${AWS::Region}
+  #             DB_NAME=${DBName}
+  #             DB_PASSWORD=${MasterDBPassword}
+  #             DB_USER_NAME=${MasterDBUsername}
+  #             SNS_TOPIC_ARN=${SNSTopic}
+  #             tokenExpireSeconds=${tokenttl}
+  #           EOF
+  #           cd /home/ubuntu/webapp
+  #           pm2 reload ecosystem.config.js --update-env
+  #           sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub 'EC2Instance-${AWS::StackName}'
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -437,6 +442,8 @@ Resources:
 
   RDSDBInstance:
     Type: AWS::RDS::DBInstance
+    DependsOn:
+      - RDSCustomerManagedKey
     DeletionPolicy: Delete
     Properties:
       Engine: postgres
@@ -454,6 +461,8 @@ Resources:
       DBParameterGroupName: !Ref RDSParameterGroup
       VPCSecurityGroups:
         - !Ref DatabaseSecurityGroup
+      StorageEncrypted: true
+      KmsKeyId: !Ref RDSCustomerManagedKey
 
   WebAppS3EC2IAMPolicy:
     Type: AWS::IAM::Policy
@@ -554,37 +563,286 @@ Resources:
         - !Ref LambdaExecutionRole
         - !Ref WebAppS3EC2IAMRole
 
-  # CodeDeployEC2S3Policy:
-  #   Type: AWS::IAM::Policy
-  #   Properties:
-  #     PolicyDocument:
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Action:
-  #             - "s3:GetObject"
-  #             - "s3:ListBucket"
-  #           Resource:
-  #             - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/'
-  #             - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
-  #     PolicyName: "CodeDeployEC2S3"
-  #     Roles:
-  #       - !Ref WebAppS3EC2IAMRole
+  CodeDeployEC2S3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:ListBucket"
+            Resource:
+              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/'
+              - !Sub 'arn:aws:s3:::${CodeDeployBucketName}/*'
+      PolicyName: "CodeDeployEC2S3"
+      Roles:
+        - !Ref WebAppS3EC2IAMRole
 
-  # CodeDeployApplication:
-  #   Type: AWS::CodeDeploy::Application
-  #   Properties:
-  #     ApplicationName: "csye6225-webapp"
-  #     ComputePlatform: "Server"
-  #     Tags:
-  #       - Key: Name
-  #         Value: !Sub '${AWS::StackName}-codedeploy-app'
+  AutoSGLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties: 
+      LaunchTemplateData: 
+        ImageId: !Ref AmiId
+        InstanceType: "t2.micro"
+        KeyName: !Ref sshKeyName
+        SecurityGroupIds:
+          - !Ref application
+        DisableApiTermination: "false"
+        IamInstanceProfile:
+          Name: WebAppEC2InstanceProfile
+        BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: "20"
+            Encrypted: true
+            KmsKeyId: !GetAtt EBSKey.Arn
+        UserData:
+          Fn::Base64:
+            !Sub |
+            #!/bin/bash
+            sudo apt-get update
+            sudo apt-get upgrade -y
+            sudo apt-get install nginx -y
+            touch /etc/nginx/sites-available/myserver.config
+            chmod 777 /etc/nginx/sites-available/myserver.config
+            cat > /etc/nginx/sites-available/myserver.config << 'EOF'
+              server{
+                  listen 80;
+                  server_name ${DomainPrefix}.${DomainName};
+                  location / {
+                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                      proxy_set_header Host $host;
+                      proxy_pass http://127.0.0.1:3000;
+                      proxy_http_version 1.1;
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection "upgrade";
+                  }
+              }
+            EOF
+            sudo ln -s /etc/nginx/sites-available/myserver.config /etc/nginx/sites-enabled/
+            sudo unlink /etc/nginx/sites-available/default
+            sudo rm /etc/nginx/sites-enabled/default
+            sudo systemctl restart nginx
+            touch /etc/profile.d/webenv.sh
+            chmod 777 /etc/profile.d/webenv.sh
+            cat > /etc/profile.d/webenv.sh << 'EOF'
+              export DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
+              export AWS_BUCKET_NAME=${S3BucketName}
+              export S3REGION=${AWS::Region}
+              export DB_NAME=${DBName}
+              export DB_PASSWORD=${MasterDBPassword}
+              export DB_USER_NAME=${MasterDBUsername}
+              export SNS_TOPIC_ARN=${SNSTopic}
+              export tokenExpireSeconds=${tokenttl}
+            EOF
+            touch /home/ubuntu/webapp/.env
+            cat > /home/ubuntu/webapp/.env << 'EOF'
+              DB_ADDRESS=${RDSDBInstance.Endpoint.Address}
+              AWS_BUCKET_NAME=${S3BucketName}
+              S3REGION=${AWS::Region}
+              DB_NAME=${DBName}
+              DB_PASSWORD=${MasterDBPassword}
+              DB_USER_NAME=${MasterDBUsername}
+              SNS_TOPIC_ARN=${SNSTopic}
+              tokenExpireSeconds=${tokenttl}
+            EOF
+            cd /home/ubuntu/webapp
+            pm2 reload all --update-env
+            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
+        TagSpecifications:
+          - ResourceType: "instance"
+            Tags:
+              - Key: Name
+                Value: !Sub 'EC2Instance-${AWS::StackName}'   
+      LaunchTemplateName: !Sub '${AWS::StackName}-asg-launch-template'
+    
+  AutoSGWebApp:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - application
+    Properties:
+      AutoScalingGroupName: !Sub ${AWS::StackName}-webapp-asg
+      AvailabilityZones:
+        - !Select [ 0, !GetAZs '' ]
+        - !Select [ 1, !GetAZs '' ]
+        - !Select [ 2, !GetAZs '' ]
+      Cooldown: "60"
+      MinSize: "1"
+      MaxSize: "5"
+      DesiredCapacity: "1"
+      HealthCheckGracePeriod: 90
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AutoSGLaunchTemplate
+        Version: !GetAtt AutoSGLaunchTemplate.LatestVersionNumber
+      NewInstancesProtectedFromScaleIn: false
+      VPCZoneIdentifier:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      Tags:
+        - Key: Application
+          Value: WebApp
+          PropagateAtLaunch: "true"
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-webapp-asg'
+          PropagateAtLaunch: "true"
+      TargetGroupARNs:
+        - !Ref AppLoadBalancerTargetGroup
+
+  AsgScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties: 
+      AdjustmentType: "ChangeInCapacity"
+      AutoScalingGroupName: !Ref AutoSGWebApp
+      Cooldown: "60"
+      ScalingAdjustment: 1
+
+  AsgScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties: 
+      AdjustmentType: "ChangeInCapacity"
+      AutoScalingGroupName: !Ref AutoSGWebApp
+      Cooldown: "60"
+      ScalingAdjustment: -1
+
+  AvgCPUUsageHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmDescription: "Trigger when CPU usage is above 5%"
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 5.0
+      AlarmActions:
+        - !Ref AsgScaleUpPolicy
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions: 
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoSGWebApp
+
+  AvgCPUUsageLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmDescription: "Trigger when CPU usage is below 3%"
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 3.0
+      AlarmActions:
+        - !Ref AsgScaleDownPolicy
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoSGWebApp
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn:
+      - AutoSGWebApp
+      - LoadBalancerSecurityGroup
+    Properties:
+      IpAddressType: "ipv4"
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '60'
+      Name: !Sub '${AWS::StackName}-app-lb'
+      Scheme: "internet-facing"
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Subnets:
+        - !Ref Subnet1
+        - !Ref Subnet2
+        - !Ref Subnet3
+      Tags:
+        - Key: Application
+          Value: WebApp
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-app-lb'
+      Type: "application"
+
+  AppLoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 90
+      HealthCheckPath: "/healthz"
+      HealthCheckPort: "3000"
+      HealthCheckProtocol: "HTTP"
+      HealthCheckTimeoutSeconds: 60
+      HealthyThresholdCount: 2
+      IpAddressType: "ipv4"
+      Matcher:
+        HttpCode: "200-299"
+      Name: !Sub '${AWS::StackName}-app-lb-tg'
+      Port: 3000
+      Protocol: "HTTP"
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-app-lb-tg'
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '20'
+      TargetType: "instance"
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref Vpc
+
+  AppLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref AppLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Certificates:
+        - !Ref SSLCertificateArn
+      Port: 443
+      Protocol: "HTTPS"
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: LoadBalancerSecurityGroup
+      GroupDescription: LoadBalancer security group to allow TCP traffic on ports 80 and 443 from anywhere
+      VpcId:
+        Ref: Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: !Sub '${AWS::StackName}-loadbalancer-security-group'
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: "csye6225-webapp"
+      ComputePlatform: "Server"
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-codedeploy-app'
 
   # CodeDeploymentGroup:
   #   Type: AWS::CodeDeploy::DeploymentGroup
   #   DependsOn:
-  #     - CodeDeployApplication
-  #     - WebAppS3EC2IAMPolicy
+  #     - AutoSGWebApp
+  #     # - CodeDeployApplication
+  #     # - WebAppS3EC2IAMPolicy
   #   Properties:
   #     DeploymentGroupName: "csye6225-webapp-deployment"
   #     ApplicationName: "csye6225-webapp"
@@ -731,15 +989,98 @@ Resources:
       PublicKeyMaterial: !Ref sshKeyValue
 
   myDNSRecord:
-    Type: AWS::Route53::RecordSet
+    Type: AWS::Route53::RecordSetGroup
     Properties:
+      Comment: "Accessing application through DNS"
       HostedZoneName: !Sub '${DomainPrefix}.${DomainName}'
-      Comment: DNS name
-      Name: !Sub '${DomainPrefix}.${DomainName}'
-      Type: A
-      TTL: '60'
-      ResourceRecords:
-        - !GetAtt EC2Instance.PublicIp
+      RecordSets:
+        - Name: !Sub '${DomainPrefix}.${DomainName}'
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt 'ApplicationLoadBalancer.DNSName'
+            HostedZoneId: !GetAtt 'ApplicationLoadBalancer.CanonicalHostedZoneID'
+
+  # ebs customer managed key
+  EBSKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: Customer managed EBS Key
+      Enabled: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: ebskey
+        Statement:
+          # for iam user permission 
+          - Effect: Allow
+            Principal:
+              AWS: 
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 
+              - kms:*
+            Resource: '*'
+          # service-linked role
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling'
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+          # For persistent resources allow access
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling'
+            Action:
+              - kms:CreateGrant
+            Resource: '*'
+            Condition:
+              Bool:
+                kms:GrantIsForAWSResource: true
+      PendingWindowInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-ebs-key'
+
+  # alias for ebs key
+  EBSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/ebskey
+      TargetKeyId: !Ref EBSKey
+
+  # rds customer managed key
+  RDSCustomerManagedKey:
+    Type: AWS::KMS::Key
+    Properties: 
+      Description: Customer managed RDS Key
+      Enabled: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: rdskey
+        Statement:
+          # for iam user permission 
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+      PendingWindowInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-rds-key'
+
+  # alias for rds key
+  RDSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/rdskey
+      TargetKeyId: !Ref RDSCustomerManagedKey
+
   
     # creating log groups and streams
   CWLogErrorGroup:
