@@ -123,7 +123,7 @@ Parameters:
 
   SSLCertificateArn:
     Type: String
-    Default: "arn:aws:acm:us-east-1:452294843982:certificate/01b07b55-417e-4358-9bcd-f5b5b0049ba0"
+    Default: "01b07b55-417e-4358-9bcd-f5b5b0049ba0"
     # Default: "arn:aws:acm:us-east-1:452294843982:certificate/5e1cc099-4256-4987-866e-d1ade200d97c"
   
 Resources:
@@ -806,7 +806,7 @@ Resources:
           TargetGroupArn: !Ref AppLoadBalancerTargetGroup
       LoadBalancerArn: !Ref ApplicationLoadBalancer
       Certificates:
-        - !Ref SSLCertificateArn
+        - CertificateArn: !Sub 'arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/${SSLCertificateArn}'
       Port: 443
       Protocol: "HTTPS"
 
