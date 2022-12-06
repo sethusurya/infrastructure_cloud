@@ -651,7 +651,9 @@ Resources:
               tokenExpireSeconds=${tokenttl}
             EOF
             cd /home/ubuntu/webapp
-            pm2 reload all --update-env
+            echo "starting pm2 reload with sudo"
+            sudo pm2 reload ecosystem.config.js --update-env
+            echo "ran the pm2 reload with env"
             sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/home/ubuntu/webapp/amazon-cloudwatch-config.json
         TagSpecifications:
           - ResourceType: "instance"
